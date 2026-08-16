@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Search, Loader, AlertCircle, Edit, Trash2 } from "lucide-react";
+import { Plus, Loader, AlertCircle, Edit, Trash2 } from "lucide-react";
 import { feeStructureAPI } from "../services/api";
 
 export default function FeeStructures() {
@@ -17,16 +17,25 @@ export default function FeeStructures() {
                     page: currentPage,
                     limit: 50,
                     className: classFilter || undefined,
+                    class: classFilter || undefined,
                 };
 
                 const response = await feeStructureAPI.list(params);
-                setStructures(response.data.data);
+
+                // Safely extract array across different backend envelope structures
+                const rawData = response.data?.data;
+                const structuresList = Array.isArray(rawData)
+                    ? rawData
+                    : rawData?.feeStructures || rawData?.structures || response.data?.feeStructures || [];
+
+                setStructures(Array.isArray(structuresList) ? structuresList : []);
                 setError(null);
             } catch (err) {
                 console.error("Error fetching fee structures:", err);
                 setError(
                     err.response?.data?.message || "Failed to load fee structures"
                 );
+                setStructures([]);
             } finally {
                 setLoading(false);
             }
@@ -96,7 +105,7 @@ export default function FeeStructures() {
                 <div className="flex items-center justify-center h-96">
                     <Loader size={32} className="animate-spin text-blue-600" />
                 </div>
-            ) : structures.length === 0 ? (
+            ) : !Array.isArray(structures) || structures.length === 0 ? (
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-12 text-center">
                     <p className="text-slate-600 dark:text-slate-400">
                         No fee structures found. Create one to get started.
@@ -113,14 +122,14 @@ export default function FeeStructures() {
                             <div className="flex items-start justify-between mb-3">
                                 <div>
                                     <h3 className="font-bold text-slate-900 dark:text-white">
-                                        {structure.feeType}
+                                        {structure.feeType || structure.name || "Fee Item"}
                                     </h3>
                                     <p className="text-sm text-slate-600 dark:text-slate-400">
-                                        Class {structure.className}
+                                        Class {structure.className || structure.class || "All"}
                                     </p>
                                 </div>
                                 <span className="px-2 py-1 bg-slate-100 dark:bg-slate-700 text-xs font-medium rounded text-slate-700 dark:text-slate-300">
-                                    {structure.billingCycle}
+                                    {structure.billingCycle || structure.frequency || "Monthly"}
                                 </span>
                             </div>
 
@@ -130,7 +139,7 @@ export default function FeeStructures() {
                                         Amount:
                                     </span>
                                     <span className="font-bold text-slate-900 dark:text-white">
-                                        ₹{structure.amount.toLocaleString("en-IN")}
+                                        ₹{(Number(structure.amount) || 0).toLocaleString("en-IN")}
                                     </span>
                                 </div>
                                 {structure.description && (

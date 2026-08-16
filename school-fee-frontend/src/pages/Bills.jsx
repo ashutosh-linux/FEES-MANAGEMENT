@@ -6,15 +6,12 @@ import {
     Loader,
     AlertCircle,
     Eye,
-    FileText,
     DollarSign,
-    Clock,
-    CheckCircle,
 } from "lucide-react";
 import { billAPI } from "../services/api";
 
 export default function Bills() {
-    const [bills, setbills] = useState([]);
+    const [bills, setBills] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [statusFilter, setStatusFilter] = useState("");
@@ -31,11 +28,19 @@ export default function Bills() {
                 };
 
                 const response = await billAPI.list(params);
-                setbills(response.data.data);
+
+                // Safely extract array across backend structures
+                const rawData = response.data?.data;
+                const billsList = Array.isArray(rawData)
+                    ? rawData
+                    : rawData?.bills || response.data?.bills || [];
+
+                setBills(Array.isArray(billsList) ? billsList : []);
                 setError(null);
             } catch (err) {
                 console.error("Error fetching bills:", err);
                 setError(err.response?.data?.message || "Failed to load bills");
+                setBills([]);
             } finally {
                 setLoading(false);
             }
@@ -79,7 +84,7 @@ export default function Bills() {
                 className={`px-2 py-1 text-xs font-medium rounded ${badgeStyles[status] || badgeStyles.Unpaid
                     }`}
             >
-                {status}
+                {status || "Unpaid"}
             </span>
         );
     };
@@ -156,7 +161,7 @@ export default function Bills() {
                 <div className="flex items-center justify-center h-96">
                     <Loader size={32} className="animate-spin text-blue-600" />
                 </div>
-            ) : bills.length === 0 ? (
+            ) : !Array.isArray(bills) || bills.length === 0 ? (
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-12 text-center">
                     <p className="text-slate-600 dark:text-slate-400">
                         No bills found. Generate one to get started.
@@ -213,18 +218,17 @@ export default function Bills() {
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 text-right font-semibold">
-                                            ₹{bill.totalAmount?.toLocaleString("en-IN", {
+                                            ₹{(Number(bill.totalAmount) || 0).toLocaleString("en-IN", {
                                                 maximumFractionDigits: 0,
                                             })}
                                         </td>
                                         <td className="px-4 py-3 text-right text-green-600 dark:text-green-400 font-semibold">
-                                            ₹{bill.paidAmount?.toLocaleString("en-IN", {
+                                            ₹{(Number(bill.paidAmount) || 0).toLocaleString("en-IN", {
                                                 maximumFractionDigits: 0,
                                             })}
                                         </td>
                                         <td className="px-4 py-3 text-right text-red-600 dark:text-red-400 font-semibold">
-                                            ₹
-                                            {(bill.balanceDue || 0).toLocaleString("en-IN", {
+                                            ₹{(Number(bill.balanceDue) || 0).toLocaleString("en-IN", {
                                                 maximumFractionDigits: 0,
                                             })}
                                         </td>

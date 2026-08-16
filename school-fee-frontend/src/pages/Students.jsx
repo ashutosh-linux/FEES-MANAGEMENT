@@ -24,11 +24,19 @@ export default function Students() {
                 };
 
                 const response = await studentAPI.list(params);
-                setStudents(response.data.data);
+
+                // Safely extract array across all backend response structures
+                const rawData = response.data?.data;
+                const studentList = Array.isArray(rawData)
+                    ? rawData
+                    : rawData?.students || response.data?.students || [];
+
+                setStudents(Array.isArray(studentList) ? studentList : []);
                 setError(null);
             } catch (err) {
                 console.error("Error fetching students:", err);
                 setError(err.response?.data?.message || "Failed to load students");
+                setStudents([]);
             } finally {
                 setLoading(false);
             }
@@ -137,10 +145,10 @@ export default function Students() {
                 <div className="flex items-center justify-center h-96">
                     <Loader size={32} className="animate-spin text-blue-600" />
                 </div>
-            ) : students.length === 0 ? (
+            ) : !Array.isArray(students) || students.length === 0 ? (
                 <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-12 text-center">
                     <p className="text-slate-600 dark:text-slate-400">
-                        No students found. Try adjusting your filters.
+                        No students found. Try adjusting your filters or click "Add Student" to create one.
                     </p>
                 </div>
             ) : (
