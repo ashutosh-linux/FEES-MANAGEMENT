@@ -15,30 +15,11 @@ const app = express();
 
 // ── Global Middleware ─────────────────────────────────────────────────────────
 
-const defaultDevOrigins = ["http://localhost:5173"];
-const configuredOrigins = (process.env.CLIENT_URL || "")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
-const wildcardAllowed = configuredOrigins.includes("*");
-const allowAllOrigins = wildcardAllowed || process.env.NODE_ENV === "production";
-
-const allowedOrigins =
-  process.env.NODE_ENV === "production"
-    ? configuredOrigins
-    : [...new Set([...defaultDevOrigins, ...configuredOrigins])];
-
 app.use(
   cors({
-    origin(origin, callback) {
-      // Allow server-to-server requests and tools like curl/postman with no Origin header.
-      if (!origin) return callback(null, true);
-      if (allowAllOrigins) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
-    },
-    credentials: true,
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
