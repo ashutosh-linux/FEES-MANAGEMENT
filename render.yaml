@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: school-fee-backend
+    env: node
+    rootDir: .
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 18
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false
+      - key: CLIENT_URL
+        sync: false
