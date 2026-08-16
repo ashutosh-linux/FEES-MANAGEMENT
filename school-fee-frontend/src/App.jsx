@@ -10,17 +10,24 @@ import { API_BASE_URL, healthAPI } from "./services/api";
 function App() {
   const [activeView, setActiveView] = useState("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [dbConnected, setDbConnected] = useState(false);
+  const [dbConnected, setDbConnected] = useState(true); // Default to true to prevent initial false-positive warning
+  const [isChecking, setIsChecking] = useState(true);
 
   // Check backend health on mount
   useEffect(() => {
     const checkHealth = async () => {
       try {
         const response = await healthAPI.check();
-        setDbConnected(response.data.database === "connected");
+        const isHealthy =
+          response.data?.success === true ||
+          response.data?.database === "connected" ||
+          response.status === 200;
+        setDbConnected(Boolean(isHealthy));
       } catch (err) {
         console.error("Backend health check failed:", err);
         setDbConnected(false);
+      } finally {
+        setIsChecking(false);
       }
     };
 
@@ -60,8 +67,8 @@ function App() {
         {/* Content Area */}
         <main className="flex-1 overflow-y-auto">
           <div className="max-w-7xl mx-auto px-4 py-6 md:px-6 md:py-8">
-            {/* Backend Connectivity Warning */}
-            {!dbConnected && (
+            {/* Backend Connectivity Warning (only shown if confirmed unreachable) */}
+            {!isChecking && !dbConnected && (
               <div className="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 flex gap-3">
                 <div className="text-yellow-600 dark:text-yellow-400 flex-shrink-0">
                   ⚠️
@@ -71,8 +78,7 @@ function App() {
                     Database Connection Issue
                   </h3>
                   <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                    The backend API is not accessible. Check that this API is reachable:
-                    {" "}
+                    The backend API is not accessible. Check that this API is reachable:{" "}
                     <span className="font-mono">{API_BASE_URL}</span>
                   </p>
                 </div>
