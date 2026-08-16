@@ -1,9 +1,15 @@
 import axios from "axios";
 
-export const API_BASE_URL =
-    import.meta.env.VITE_API_BASE_URL || "https://fees-management-r4j5.onrender.com/api";
+// Clean and sanitize the base URL from env variables or fallback
+const rawBaseUrl =
+    import.meta.env.VITE_API_BASE_URL ||
+    "https://fees-management-r4j5.onrender.com/api";
 
-// Create an Axios instance pointing to the backend API
+export const API_BASE_URL = rawBaseUrl
+    .replace(/[\[\]'"`]/g, "") // Strip brackets and quotes
+    .replace(/\/+$/, "");       // Remove trailing slash if present
+
+// Create an Axios instance pointing directly to the backend API
 const API = axios.create({
     baseURL: API_BASE_URL,
     headers: {
@@ -11,16 +17,7 @@ const API = axios.create({
     },
 });
 
-// Optional: Add request interceptor for auth tokens (Phase 4+)
-// API.interceptors.request.use((config) => {
-//   const token = localStorage.getItem("authToken");
-//   if (token) {
-//     config.headers.Authorization = `Bearer ${token}`;
-//   }
-//   return config;
-// });
-
-// Optional: Add response interceptor for error handling
+// Response interceptor for error handling
 API.interceptors.response.use(
     (response) => response,
     (error) => {
