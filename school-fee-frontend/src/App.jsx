@@ -5,7 +5,7 @@ import Dashboard from "./pages/Dashboard";
 import Students from "./pages/Students";
 import FeeStructures from "./pages/FeeStructures";
 import Bills from "./pages/Bills";
-import { healthAPI } from "./services/api";
+import { API_BASE_URL, healthAPI } from "./services/api";
 
 function App() {
   const [activeView, setActiveView] = useState("dashboard");
@@ -71,8 +71,9 @@ function App() {
                     Database Connection Issue
                   </h3>
                   <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                    The backend API is not accessible. Make sure the server is running
-                    on http://localhost:5000
+                    The backend API is not accessible. Check that this API is reachable:
+                    {" "}
+                    <span className="font-mono">{API_BASE_URL}</span>
                   </p>
                 </div>
               </div>

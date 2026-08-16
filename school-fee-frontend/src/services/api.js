@@ -1,8 +1,11 @@
 import axios from "axios";
 
+export const API_BASE_URL =
+    import.meta.env.VITE_API_BASE_URL || "https://fees-management-r4j5.onrender.com/api";
+
 // Create an Axios instance pointing to the backend API
 const API = axios.create({
-    baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api",
+    baseURL: API_BASE_URL,
     headers: {
         "Content-Type": "application/json",
     },

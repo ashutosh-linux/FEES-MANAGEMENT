@@ -21,6 +21,9 @@ const configuredOrigins = (process.env.CLIENT_URL || "")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+const wildcardAllowed = configuredOrigins.includes("*");
+const allowAllOrigins = wildcardAllowed || process.env.NODE_ENV === "production";
+
 const allowedOrigins =
   process.env.NODE_ENV === "production"
     ? configuredOrigins
@@ -31,6 +34,7 @@ app.use(
     origin(origin, callback) {
       // Allow server-to-server requests and tools like curl/postman with no Origin header.
       if (!origin) return callback(null, true);
+      if (allowAllOrigins) return callback(null, true);
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error(`CORS blocked for origin: ${origin}`));
     },
