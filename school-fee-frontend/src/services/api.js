@@ -1,13 +1,7 @@
 import axios from "axios";
 
-// Clean and sanitize the base URL from env variables or fallback
-const rawBaseUrl =
-    import.meta.env.VITE_API_BASE_URL ||
-    "https://fees-management-r4j5.onrender.com/api";
-
-export const API_BASE_URL = rawBaseUrl
-    .replace(/[\[\]'"`]/g, "") // Strip brackets and quotes
-    .replace(/\/+$/, "");       // Remove trailing slash if present
+// Direct absolute backend URL
+export const API_BASE_URL = "https://fees-management-r4j5.onrender.com/api";
 
 // Create an Axios instance pointing directly to the backend API
 const API = axios.create({
@@ -29,81 +23,38 @@ API.interceptors.response.use(
 // ── Student APIs ──────────────────────────────────────────────────────────────
 
 export const studentAPI = {
-    // GET /api/students
     list: (params) => API.get("/students", { params }),
-
-    // GET /api/students/:id
     get: (id) => API.get(`/students/${id}`),
-
-    // POST /api/students
     create: (data) => API.post("/students", data),
-
-    // PUT /api/students/:id
     update: (id, data) => API.put(`/students/${id}`, data),
-
-    // DELETE /api/students/:id
     delete: (id) => API.delete(`/students/${id}`),
-
-    // GET /api/students/stats/summary
     stats: () => API.get("/students/stats/summary"),
-
-    // GET /api/students/:id/bills
     getBills: (id) => API.get(`/students/${id}/bills`),
 };
 
 // ── Fee Structure APIs ────────────────────────────────────────────────────────
 
 export const feeStructureAPI = {
-    // GET /api/fee-structures
     list: (params) => API.get("/fee-structures", { params }),
-
-    // GET /api/fee-structures/:id
     get: (id) => API.get(`/fee-structures/${id}`),
-
-    // POST /api/fee-structures
     create: (data) => API.post("/fee-structures", data),
-
-    // PUT /api/fee-structures/:id
     update: (id, data) => API.put(`/fee-structures/${id}`, data),
-
-    // DELETE /api/fee-structures/:id
     delete: (id) => API.delete(`/fee-structures/${id}`),
-
-    // GET /api/fee-structures/class/:className
     getByClass: (className) => API.get(`/fee-structures/class/${className}`),
-
-    // POST /api/fee-structures/bulk
     bulkCreate: (data) => API.post("/fee-structures/bulk", data),
 };
 
 // ── Bill APIs ─────────────────────────────────────────────────────────────────
 
 export const billAPI = {
-    // GET /api/bills
     list: (params) => API.get("/bills", { params }),
-
-    // GET /api/bills/:id
     get: (id) => API.get(`/bills/${id}`),
-
-    // POST /api/bills
     create: (data) => API.post("/bills", data),
-
-    // PUT /api/bills/:id
     update: (id, data) => API.put(`/bills/${id}`, data),
-
-    // POST /api/bills/:id/payments
     recordPayment: (id, data) => API.post(`/bills/${id}/payments`, data),
-
-    // GET /api/bills/:id/pdf
     downloadPDF: (id) => API.get(`/bills/${id}/pdf`, { responseType: "blob" }),
-
-    // POST /api/bills/generate
     generateBills: (data) => API.post("/bills/generate", data),
-
-    // GET /api/bills/student/:studentId
     getByStudent: (studentId) => API.get(`/bills/student/${studentId}`),
-
-    // GET /api/bills/stats/summary
     stats: () => API.get("/bills/stats/summary"),
 };
 
