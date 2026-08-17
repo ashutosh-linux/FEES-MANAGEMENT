@@ -1,6 +1,6 @@
 import axios from "axios";
 
-// Export API_BASE_URL for App.jsx and other components
+// 1. Export API_BASE_URL (required by App.jsx)
 export const API_BASE_URL =
     import.meta.env.VITE_API_URL ||
     "https://fees-management-r4j5.onrender.com/api";
@@ -12,7 +12,6 @@ const api = axios.create({
     },
 });
 
-// Attach token to every request if available
 api.interceptors.request.use(
     (config) => {
         const token = localStorage.getItem("token");
@@ -24,12 +23,13 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// Health check endpoint
+// 2. Export healthAPI (required by App.jsx)
 export const healthAPI = {
     check: () => api.get("/health"),
     getStatus: () => api.get("/health"),
 };
 
+// 3. Entity API services
 export const studentAPI = {
     list: (params) => api.get("/students", { params }),
     getById: (id) => api.get(`/students/${id}`),
@@ -56,4 +56,5 @@ export const feeStructureAPI = {
     delete: (id) => api.delete(`/fee-structures/${id}`),
 };
 
+export { api };
 export default api;
