@@ -23,9 +23,10 @@ const lineItemSchema = new mongoose.Schema(
       type: Number,
       required: [true, "Line-item amount is required"],
       min: [0, "Amount cannot be negative"],
+      set: (v) => parseFloat(Number(v).toFixed(2)),
     },
   },
-  { _id: false } // no separate _id for embedded sub-docs
+  { _id: false }
 );
 
 const PAYMENT_METHODS = [
@@ -35,7 +36,7 @@ const PAYMENT_METHODS = [
   "CreditCard",
   "DebitCard",
   "Cheque",
-  "DD",            // Demand Draft
+  "DD",
   "BankTransfer",
 ];
 
@@ -45,6 +46,7 @@ const paymentHistorySchema = new mongoose.Schema(
       type: Number,
       required: [true, "Amount paid is required"],
       min: [0.01, "Payment amount must be greater than zero"],
+      set: (v) => parseFloat(Number(v).toFixed(2)),
     },
     paymentDate: {
       type: Date,
@@ -62,7 +64,6 @@ const paymentHistorySchema = new mongoose.Schema(
     transactionId: {
       type: String,
       trim: true,
-      // Optional for Cash; required for digital payments (validated in controller)
     },
     remarks: {
       type: String,
@@ -71,7 +72,7 @@ const paymentHistorySchema = new mongoose.Schema(
     },
     recordedBy: {
       type: String,
-      trim: true, // admin / staff who recorded the payment
+      trim: true,
     },
   },
   { timestamps: true }
@@ -98,13 +99,11 @@ const billSchema = new mongoose.Schema(
       unique: true,
       trim: true,
       uppercase: true,
-      // Recommended format: BILL-YYYYMM-XXXX  e.g. BILL-202406-0001
     },
 
-    // Billing period this invoice covers (optional but useful for monthly cycles)
     billingPeriod: {
-      month: { type: Number, min: 1, max: 12 }, // 1 = January
-      year:  { type: Number, min: 2000 },
+      month: { type: Number, min: 1, max: 12 },
+      year: { type: Number, min: 2000 },
     },
 
     items: {
@@ -119,6 +118,7 @@ const billSchema = new mongoose.Schema(
       type: Number,
       required: [true, "Total amount is required"],
       min: [0, "Total amount cannot be negative"],
+      set: (v) => parseFloat(Number(v).toFixed(2)),
     },
 
     dueDate: {
@@ -139,6 +139,7 @@ const billSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: [0, "Paid amount cannot be negative"],
+      set: (v) => parseFloat(Number(v).toFixed(2)),
     },
 
     paymentHistory: {
@@ -150,12 +151,14 @@ const billSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: [0, "Discount cannot be negative"],
+      set: (v) => parseFloat(Number(v).toFixed(2)),
     },
 
     fine: {
       type: Number,
       default: 0,
       min: [0, "Fine cannot be negative"],
+      set: (v) => parseFloat(Number(v).toFixed(2)),
     },
 
     notes: {
@@ -178,16 +181,31 @@ billSchema.index({ dueDate: 1 });
 billSchema.index({ studentId: 1, status: 1 });
 billSchema.index({ "billingPeriod.year": 1, "billingPeriod.month": 1 });
 
+// Prevent duplicate monthly fee bills for the same student
+billSchema.index(
+  { studentId: 1, "billingPeriod.year": 1, "billingPeriod.month": 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      "billingPeriod.month": { $exists: true },
+      "billingPeriod.year": { $exists: true },
+      status: { $nin: ["Cancelled"] },
+    },
+  }
+);
+
 // ── Virtuals ──────────────────────────────────────────────────────────────────
 
 /** Net payable = total + fine - discount */
 billSchema.virtual("netPayable").get(function () {
-  return this.totalAmount + (this.fine || 0) - (this.discount || 0);
+  const net = (this.totalAmount || 0) + (this.fine || 0) - (this.discount || 0);
+  return parseFloat(Math.max(0, net).toFixed(2));
 });
 
 /** Balance remaining on this bill */
 billSchema.virtual("balanceDue").get(function () {
-  return Math.max(0, this.netPayable - this.paidAmount);
+  const balance = (this.netPayable || 0) - (this.paidAmount || 0);
+  return parseFloat(Math.max(0, balance).toFixed(2));
 });
 
 /** True when past due date and not fully paid */
@@ -196,27 +214,36 @@ billSchema.virtual("isOverdue").get(function () {
     this.status !== "Paid" &&
     this.status !== "Cancelled" &&
     this.status !== "Waived" &&
-    new Date() > this.dueDate
+    new Date() > new Date(this.dueDate)
   );
 });
 
-// ── Pre-save middleware ───────────────────────────────────────────────────────
+// ── Pre-validate & Pre-save Middleware ─────────────────────────────────────────
+
+/** Auto compute totalAmount from items if not supplied or items changed */
+billSchema.pre("validate", function (next) {
+  if (this.items && this.items.length > 0 && (this.isModified("items") || this.totalAmount === undefined)) {
+    const computedTotal = this.items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    this.totalAmount = parseFloat(computedTotal.toFixed(2));
+  }
+  next();
+});
 
 /**
  * Automatically derive `status` from `paidAmount` vs `netPayable`
- * so the status field never falls out of sync with actual payments.
  */
 billSchema.pre("save", function (next) {
-  // Don't override terminal statuses set intentionally
   if (this.status === "Cancelled" || this.status === "Waived") {
     return next();
   }
 
-  const net = this.totalAmount + (this.fine || 0) - (this.discount || 0);
+  const net = parseFloat(((this.totalAmount || 0) + (this.fine || 0) - (this.discount || 0)).toFixed(2));
+  const paid = parseFloat((this.paidAmount || 0).toFixed(2));
 
-  if (this.paidAmount <= 0) {
+  // Tolerance check for floating point parity (0.001)
+  if (paid <= 0) {
     this.status = "Unpaid";
-  } else if (this.paidAmount >= net) {
+  } else if (paid >= net - 0.001) {
     this.status = "Paid";
   } else {
     this.status = "Partially Paid";
@@ -228,7 +255,7 @@ billSchema.pre("save", function (next) {
 // ── Statics ───────────────────────────────────────────────────────────────────
 
 /**
- * Fetch all unpaid / partially paid bills for a student.
+ * Fetch all pending bills for a student sorted by due date.
  * Usage: Bill.findPendingByStudent(studentId)
  */
 billSchema.statics.findPendingByStudent = function (studentId) {

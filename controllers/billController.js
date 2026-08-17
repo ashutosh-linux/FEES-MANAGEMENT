@@ -48,7 +48,7 @@ export const getBills = asyncHandler(async (req, res) => {
 
   const [bills, total] = await Promise.all([
     Bill.find(filter)
-      .populate("studentId", "name rollNumber class section")   // join student info
+      .populate("studentId", "name rollNumber class section")
       .sort({ [sortField]: sortOrder })
       .skip(skip)
       .limit(limit)
@@ -113,13 +113,11 @@ export const getBillsByStudent = asyncHandler(async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  POST /api/bills
-//  Auto-computes totalAmount from items; auto-generates billNumber
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const createBill = asyncHandler(async (req, res) => {
   const { studentId, items, dueDate, discount, fine, billingPeriod, notes } = req.body;
 
-  // Verify the student exists and is active
   const student = await Student.findById(studentId).lean();
   if (!student) return sendNotFound(res, "Student");
   if (!student.isActive) {
@@ -150,8 +148,6 @@ export const createBill = asyncHandler(async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  POST /api/bills/generate-from-fee-structure
-//  Generates bills for an entire class from the stored fee structure
-//  Body: { className, section (optional), month, year, dueDate }
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const generateBillsFromFeeStructure = asyncHandler(async (req, res) => {
@@ -164,7 +160,6 @@ export const generateBillsFromFeeStructure = asyncHandler(async (req, res) => {
     });
   }
 
-  // 1. Find all active fee structures for this class
   const feeStructures = await FeeStructure.findByClass(className);
   if (feeStructures.length === 0) {
     return sendError(res, {
@@ -173,7 +168,6 @@ export const generateBillsFromFeeStructure = asyncHandler(async (req, res) => {
     });
   }
 
-  // 2. Find all active students in this class (optionally filtered by section)
   const studentFilter = { class: className, isActive: true };
   if (section) studentFilter.section = section.toUpperCase();
   const students = await Student.find(studentFilter).lean();
@@ -185,13 +179,11 @@ export const generateBillsFromFeeStructure = asyncHandler(async (req, res) => {
     });
   }
 
-  // 3. Filter fee structures applicable for this month's billing cycle
-  //    (Monthly: all; Quarterly: Jan/Apr/Jul/Oct; Yearly: Jun)
   const applicableFees = feeStructures.filter((fs) => {
     if (fs.billingCycle === "Monthly") return true;
     if (fs.billingCycle === "Quarterly") return [1, 4, 7, 10].includes(parseInt(month));
-    if (fs.billingCycle === "Yearly") return parseInt(month) === 6; // June
-    if (fs.billingCycle === "One-Time") return false; // handled separately
+    if (fs.billingCycle === "Yearly") return parseInt(month) === 6;
+    if (fs.billingCycle === "One-Time") return false;
     return false;
   });
 
@@ -202,7 +194,6 @@ export const generateBillsFromFeeStructure = asyncHandler(async (req, res) => {
     });
   }
 
-  // 4. Build bill documents for each student
   const items = applicableFees.map((fs) => ({ description: `${fs.feeType} Fee`, amount: fs.amount }));
   const totalAmount = calcTotal(items);
 
@@ -217,7 +208,6 @@ export const generateBillsFromFeeStructure = asyncHandler(async (req, res) => {
     }))
   );
 
-  // 5. Bulk insert — skip students who already have a bill for this period
   const result = await Bill.insertMany(billDocs, { ordered: false, rawResult: true });
 
   sendSuccess(res, {
@@ -234,8 +224,6 @@ export const generateBillsFromFeeStructure = asyncHandler(async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  PUT /api/bills/:id
-//  Allowed manual edits: dueDate, discount, fine, notes, status (cancel/waive)
-//  totalAmount is always re-computed if items are provided
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const updateBill = asyncHandler(async (req, res) => {
@@ -253,12 +241,11 @@ export const updateBill = asyncHandler(async (req, res) => {
   if (fine !== undefined) bill.fine = Number(fine);
   if (notes !== undefined) bill.notes = notes;
 
-  // Only allow manual override to terminal statuses
   if (status === "Cancelled" || status === "Waived") {
     bill.status = status;
   }
 
-  await bill.save(); // pre-save hook re-derives status unless Cancelled/Waived
+  await bill.save();
 
   sendSuccess(res, {
     message: "Bill updated successfully",
@@ -268,7 +255,6 @@ export const updateBill = asyncHandler(async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  POST /api/bills/:id/payments
-//  Append a payment to paymentHistory; pre-save hook updates status
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const recordPayment = asyncHandler(async (req, res) => {
@@ -288,7 +274,6 @@ export const recordPayment = asyncHandler(async (req, res) => {
   const { amountPaid, paymentMethod, paymentDate, transactionId, remarks, recordedBy } = req.body;
   const amount = Number(amountPaid);
 
-  // Guard: digital payments should carry a transactionId
   const digitalMethods = ["UPI", "NetBanking", "CreditCard", "DebitCard", "BankTransfer"];
   if (digitalMethods.includes(paymentMethod) && !transactionId) {
     return sendError(res, {
@@ -297,17 +282,15 @@ export const recordPayment = asyncHandler(async (req, res) => {
     });
   }
 
-  // Guard: don't allow overpayment
   const netPayable = bill.totalAmount + (bill.fine || 0) - (bill.discount || 0);
   const balanceDue = Math.max(0, netPayable - bill.paidAmount);
-  if (amount > balanceDue + 0.001) { // float tolerance
+  if (amount > balanceDue + 0.001) {
     return sendError(res, {
       statusCode: 400,
       message: `Payment amount (${amount}) exceeds the outstanding balance (${balanceDue.toFixed(2)})`,
     });
   }
 
-  // Append to history and update cumulative paidAmount
   bill.paymentHistory.push({
     amountPaid: amount,
     paymentDate: paymentDate ? new Date(paymentDate) : new Date(),
@@ -318,11 +301,8 @@ export const recordPayment = asyncHandler(async (req, res) => {
   });
 
   bill.paidAmount = parseFloat((bill.paidAmount + amount).toFixed(2));
-  // pre-save hook will set status based on new paidAmount
-
   await bill.save();
 
-  // Return the latest payment entry as a receipt
   const latestPayment = bill.paymentHistory[bill.paymentHistory.length - 1];
 
   sendSuccess(res, {
@@ -344,7 +324,7 @@ export const recordPayment = asyncHandler(async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  GET /api/bills/:id/pdf
-//  Generates and streams a PDF invoice for the bill
+//  Generates and streams polished PDF invoice with header, currency, & stamp
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const downloadBillPDF = asyncHandler(async (req, res) => {
@@ -357,50 +337,40 @@ export const downloadBillPDF = asyncHandler(async (req, res) => {
   const student = bill.studentId;
 
   try {
-    // Generate PDF document
-    const pdfDoc = generateBillPDF(bill, student);
+    const options = {
+      currency: "INR",
+      currencySymbol: "Rs. ", // Or "$" / "₹" depending on font support
+    };
 
-    // Set response headers for PDF download/viewing
+    const pdfDoc = generateBillPDF(bill, student, options);
+
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader(
-      "Content-Disposition",
-      `inline; filename="Bill_${bill.billNumber}.pdf"`
-    );
+    res.setHeader("Content-Disposition", `inline; filename="Invoice_${bill.billNumber}.pdf"`);
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
 
-    // Pipe PDF to response
-    pdfDoc.pipe(res);
-
-    // Finalize the PDF
-    pdfDoc.end();
-
-    // Handle errors during PDF generation
     pdfDoc.on("error", (err) => {
       console.error("PDF Generation Error:", err);
       if (!res.headersSent) {
-        sendError(res, {
-          statusCode: 500,
-          message: "Error generating PDF",
-        });
+        sendError(res, { statusCode: 500, message: "Error generating PDF" });
       }
     });
+
+    pdfDoc.pipe(res);
+    pdfDoc.end();
   } catch (error) {
     console.error("PDF Download Error:", error);
-    sendError(res, {
-      statusCode: 500,
-      message: "Failed to generate PDF",
-    });
+    if (!res.headersSent) {
+      sendError(res, { statusCode: 500, message: "Failed to generate PDF" });
+    }
   }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  GET /api/bills/stats/summary
-//  Dashboard aggregations: totals, status breakdown, overdue count
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const getBillStats = asyncHandler(async (req, res) => {
   const [statusSummary, overdueSummary, monthlyCollection] = await Promise.all([
-
-    // Total billed / paid / balance by status
     Bill.aggregate([
       {
         $group: {
@@ -412,7 +382,6 @@ export const getBillStats = asyncHandler(async (req, res) => {
       },
     ]),
 
-    // Overdue bills count + outstanding amount
     Bill.aggregate([
       {
         $match: {
@@ -436,7 +405,6 @@ export const getBillStats = asyncHandler(async (req, res) => {
       },
     ]),
 
-    // Monthly collections for the current year
     Bill.aggregate([
       {
         $match: {

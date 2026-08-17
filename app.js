@@ -23,10 +23,9 @@ app.use(
   })
 );
 
-app.use(express.json({ limit: "10kb" }));           // body parser + payload cap
+app.use(express.json({ limit: "10kb" }));
 app.use(express.urlencoded({ extended: true, limit: "10kb" }));
 
-// HTTP request logger — "dev" in development, "combined" (Apache format) in prod
 app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 // ── API Routes ────────────────────────────────────────────────────────────────
@@ -38,12 +37,21 @@ app.use(`${API_PREFIX}/students`, studentRoutes);
 app.use(`${API_PREFIX}/fee-structures`, feeStructureRoutes);
 app.use(`${API_PREFIX}/bills`, billRoutes);
 
-// ── Root ──────────────────────────────────────────────────────────────────────
+// ── Root & Base API Handlers ──────────────────────────────────────────────────
 
 app.get("/", (_, res) => {
   res.json({
     message: "School Fee Management API",
     version: "1.0.0",
+    docs: "/api/health",
+  });
+});
+
+// Responds directly when requests hit the base API prefix
+app.get("/api", (_, res) => {
+  res.json({
+    success: true,
+    message: "School Fee Management API is live and reachable",
     docs: "/api/health",
   });
 });
