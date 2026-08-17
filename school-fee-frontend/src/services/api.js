@@ -1,7 +1,7 @@
 import axios from "axios";
 
-// Automatically uses your live Render backend URL or environment variable
-const API_BASE_URL =
+// Export API_BASE_URL for App.jsx and other components
+export const API_BASE_URL =
     import.meta.env.VITE_API_URL ||
     "https://fees-management-r4j5.onrender.com/api";
 
@@ -23,6 +23,12 @@ api.interceptors.request.use(
     },
     (error) => Promise.reject(error)
 );
+
+// Health check endpoint
+export const healthAPI = {
+    check: () => api.get("/health"),
+    getStatus: () => api.get("/health"),
+};
 
 export const studentAPI = {
     list: (params) => api.get("/students", { params }),
