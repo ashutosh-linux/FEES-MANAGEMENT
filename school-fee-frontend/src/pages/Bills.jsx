@@ -1,4 +1,3 @@
-import InvoiceActions from "../components/InvoiceActions.jsx";
 import { useState, useEffect } from "react";
 import {
     Plus,
@@ -6,8 +5,11 @@ import {
     AlertCircle,
     DollarSign,
     X,
+    Download,
+    Eye,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import axios from "axios";
 import { billAPI, studentAPI, feeStructureAPI } from "../services/api";
 
 export default function Bills() {
@@ -18,6 +20,10 @@ export default function Bills() {
     const [error, setError] = useState(null);
     const [statusFilter, setStatusFilter] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
+
+    // Track loading states for PDF buttons per bill
+    const [downloadingId, setDownloadingId] = useState(null);
+    const [viewingId, setViewingId] = useState(null);
 
     // Modal States
     const [isManualModalOpen, setIsManualModalOpen] = useState(false);
@@ -108,6 +114,57 @@ export default function Bills() {
         const debounceTimer = setTimeout(fetchBills, 300);
         return () => clearTimeout(debounceTimer);
     }, [statusFilter, currentPage]);
+
+    // ── Direct PDF Handlers ───────────────────────────────────────────────────
+
+    const fetchPdfBlob = async (billId) => {
+        const token = localStorage.getItem("token");
+        const response = await axios.get(`/api/bills/${billId}/pdf`, {
+            responseType: "blob",
+            headers: {
+                Authorization: token ? `Bearer ${token}` : "",
+            },
+        });
+        return new Blob([response.data], { type: "application/pdf" });
+    };
+
+    const handleDownloadPDF = async (billId, billNumber) => {
+        try {
+            setDownloadingId(billId);
+            const blob = await fetchPdfBlob(billId);
+            const fileUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = fileUrl;
+            link.setAttribute("download", `Invoice_${billNumber || billId}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(fileUrl);
+            toast.success("Invoice downloaded!");
+        } catch (err) {
+            console.error("Error downloading PDF:", err);
+            toast.error("Failed to download PDF invoice");
+        } finally {
+            setDownloadingId(null);
+        }
+    };
+
+    const handleViewPDF = async (billId) => {
+        try {
+            setViewingId(billId);
+            const blob = await fetchPdfBlob(billId);
+            const fileUrl = window.URL.createObjectURL(blob);
+            window.open(fileUrl, "_blank");
+            setTimeout(() => window.URL.revokeObjectURL(fileUrl), 10000);
+        } catch (err) {
+            console.error("Error opening PDF preview:", err);
+            toast.error("Failed to open PDF invoice preview");
+        } finally {
+            setViewingId(null);
+        }
+    };
+
+    // ──────────────────────────────────────────────────────────────────────────
 
     const handleManualSubmit = async (e) => {
         e.preventDefault();
@@ -324,11 +381,30 @@ export default function Bills() {
                                         </td>
                                         <td className="px-4 py-3">{getStatusBadge(bill.status)}</td>
                                         <td className="px-4 py-3 text-center">
-                                            <div className="flex items-center justify-center gap-2">
-                                                {/* PDF View & Download Actions */}
-                                                <InvoiceActions billId={bill._id} billNumber={bill.billNumber} />
+                                            <div className="flex items-center justify-center gap-1.5">
+                                                {/* View PDF */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleViewPDF(bill._id)}
+                                                    disabled={viewingId === bill._id}
+                                                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-slate-600 dark:text-slate-300 transition cursor-pointer"
+                                                    title="View PDF"
+                                                >
+                                                    <Eye size={16} />
+                                                </button>
 
-                                                {/* Record Payment Button */}
+                                                {/* Download PDF */}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDownloadPDF(bill._id, bill.billNumber)}
+                                                    disabled={downloadingId === bill._id}
+                                                    className="p-1.5 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded text-blue-600 dark:text-blue-400 transition cursor-pointer"
+                                                    title="Download PDF"
+                                                >
+                                                    <Download size={16} />
+                                                </button>
+
+                                                {/* Record Payment */}
                                                 {bill.status !== "Paid" && (
                                                     <button
                                                         type="button"
