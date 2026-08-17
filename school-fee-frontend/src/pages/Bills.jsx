@@ -1,4 +1,3 @@
-import { InvoiceActions } from "../components/InvoiceActions.jsx";
 import { useState, useEffect } from "react";
 import {
     Plus,
@@ -10,7 +9,6 @@ import {
     Eye,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import axios from "axios";
 import { billAPI, studentAPI, feeStructureAPI } from "../services/api";
 
 export default function Bills() {
@@ -22,7 +20,6 @@ export default function Bills() {
     const [statusFilter, setStatusFilter] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
 
-    // Track loading states for PDF buttons per bill
     const [downloadingId, setDownloadingId] = useState(null);
     const [viewingId, setViewingId] = useState(null);
 
@@ -33,14 +30,12 @@ export default function Bills() {
     const [submitting, setSubmitting] = useState(false);
     const [selectedBill, setSelectedBill] = useState(null);
 
-    // Helper: 15 days from today
     const getDefaultDueDate = () => {
         const d = new Date();
         d.setDate(d.getDate() + 15);
         return d.toISOString().split("T")[0];
     };
 
-    // Form States
     const [manualForm, setManualForm] = useState({
         studentId: "",
         dueDate: getDefaultDueDate(),
@@ -56,10 +51,11 @@ export default function Bills() {
         dueDate: getDefaultDueDate(),
     });
 
+    // Keys aligned with backend validator & schema
     const [paymentForm, setPaymentForm] = useState({
-        amount: "",
-        paymentMode: "Cash",
-        transactionReference: "",
+        amountPaid: "",
+        paymentMethod: "Cash",
+        transactionId: "",
         remarks: "",
     });
 
@@ -116,30 +112,20 @@ export default function Bills() {
         return () => clearTimeout(debounceTimer);
     }, [statusFilter, currentPage]);
 
-    // ── Direct PDF Handlers ───────────────────────────────────────────────────
-
-    const fetchPdfBlob = async (billId) => {
-        const token = localStorage.getItem("token");
-        const response = await axios.get(`/api/bills/${billId}/pdf`, {
-            responseType: "blob",
-            headers: {
-                Authorization: token ? `Bearer ${token}` : "",
-            },
-        });
-        return new Blob([response.data], { type: "application/pdf" });
-    };
+    // ── PDF Handlers ──────────────────────────────────────────────────────────
 
     const handleDownloadPDF = async (billId, billNumber) => {
         try {
             setDownloadingId(billId);
-            const blob = await fetchPdfBlob(billId);
+            const response = await billAPI.downloadPDF(billId);
+            const blob = new Blob([response.data], { type: "application/pdf" });
             const fileUrl = window.URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = fileUrl;
             link.setAttribute("download", `Invoice_${billNumber || billId}.pdf`);
             document.body.appendChild(link);
             link.click();
-            link.parentNode.removeChild(link);
+            link.remove();
             window.URL.revokeObjectURL(fileUrl);
             toast.success("Invoice downloaded!");
         } catch (err) {
@@ -153,7 +139,8 @@ export default function Bills() {
     const handleViewPDF = async (billId) => {
         try {
             setViewingId(billId);
-            const blob = await fetchPdfBlob(billId);
+            const response = await billAPI.downloadPDF(billId);
+            const blob = new Blob([response.data], { type: "application/pdf" });
             const fileUrl = window.URL.createObjectURL(blob);
             window.open(fileUrl, "_blank");
             setTimeout(() => window.URL.revokeObjectURL(fileUrl), 10000);
@@ -165,7 +152,7 @@ export default function Bills() {
         }
     };
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // ── Form Submissions ──────────────────────────────────────────────────────
 
     const handleManualSubmit = async (e) => {
         e.preventDefault();
@@ -220,9 +207,12 @@ export default function Bills() {
         if (!selectedBill) return;
         try {
             setSubmitting(true);
+            // Payload now strictly sends amountPaid, paymentMethod, transactionId
             await billAPI.recordPayment(selectedBill._id, {
-                ...paymentForm,
-                amount: Number(paymentForm.amount),
+                amountPaid: Number(paymentForm.amountPaid),
+                paymentMethod: paymentForm.paymentMethod,
+                transactionId: paymentForm.transactionId || undefined,
+                remarks: paymentForm.remarks || undefined,
             });
             toast.success("Payment recorded successfully!");
             setIsPaymentModalOpen(false);
@@ -320,7 +310,7 @@ export default function Bills() {
                 </div>
             )}
 
-            {/* Table or Empty State */}
+            {/* Table */}
             {loading ? (
                 <div className="flex items-center justify-center h-96">
                     <Loader size={32} className="animate-spin text-blue-600" />
@@ -412,9 +402,9 @@ export default function Bills() {
                                                         onClick={() => {
                                                             setSelectedBill(bill);
                                                             setPaymentForm({
-                                                                amount: bill.balanceDue || 0,
-                                                                paymentMode: "Cash",
-                                                                transactionReference: "",
+                                                                amountPaid: bill.balanceDue || 0,
+                                                                paymentMethod: "Cash",
+                                                                transactionId: "",
                                                                 remarks: "",
                                                             });
                                                             setIsPaymentModalOpen(true);
@@ -647,22 +637,26 @@ export default function Bills() {
                                     required
                                     min="1"
                                     max={selectedBill.balanceDue}
-                                    value={paymentForm.amount}
-                                    onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                                    value={paymentForm.amountPaid}
+                                    onChange={(e) => setPaymentForm({ ...paymentForm, amountPaid: e.target.value })}
                                     className="w-full px-3 py-2 text-sm border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Payment Mode</label>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Payment Method</label>
                                 <select
-                                    value={paymentForm.paymentMode}
-                                    onChange={(e) => setPaymentForm({ ...paymentForm, paymentMode: e.target.value })}
+                                    value={paymentForm.paymentMethod}
+                                    onChange={(e) => setPaymentForm({ ...paymentForm, paymentMethod: e.target.value })}
                                     className="w-full px-3 py-2 text-sm border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"
                                 >
                                     <option value="Cash">Cash</option>
                                     <option value="UPI">UPI / QR Code</option>
-                                    <option value="Bank Transfer">Bank Transfer / NEFT</option>
+                                    <option value="BankTransfer">Bank Transfer / NEFT</option>
                                     <option value="Cheque">Cheque</option>
+                                    <option value="NetBanking">Net Banking</option>
+                                    <option value="CreditCard">Credit Card</option>
+                                    <option value="DebitCard">Debit Card</option>
+                                    <option value="DD">Demand Draft</option>
                                 </select>
                             </div>
                             <div>
@@ -672,8 +666,8 @@ export default function Bills() {
                                 <input
                                     type="text"
                                     placeholder="UPI Ref ID or Receipt #"
-                                    value={paymentForm.transactionReference}
-                                    onChange={(e) => setPaymentForm({ ...paymentForm, transactionReference: e.target.value })}
+                                    value={paymentForm.transactionId}
+                                    onChange={(e) => setPaymentForm({ ...paymentForm, transactionId: e.target.value })}
                                     className="w-full px-3 py-2 text-sm border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"
                                 />
                             </div>

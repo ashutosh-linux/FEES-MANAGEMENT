@@ -47,15 +47,12 @@ export const feeStructureAPI = {
 // ── Bill APIs ─────────────────────────────────────────────────────────────────
 
 export const billAPI = {
-    list: (params) => API.get("/bills", { params }),
-    get: (id) => API.get(`/bills/${id}`),
-    create: (data) => API.post("/bills", data),
-    update: (id, data) => API.put(`/bills/${id}`, data),
-    recordPayment: (id, data) => API.post(`/bills/${id}/payments`, data),
-    downloadPDF: (id) => API.get(`/bills/${id}/pdf`, { responseType: "blob" }),
-    generateBills: (data) => API.post("/bills/generate", data),
-    getByStudent: (studentId) => API.get(`/bills/student/${studentId}`),
-    stats: () => API.get("/bills/stats/summary"),
+    list: (params) => api.get("/bills", { params }),
+    getById: (id) => api.get(`/bills/${id}`),
+    create: (data) => api.post("/bills", data),
+    generateBills: (data) => api.post("/bills/generate", data),
+    recordPayment: (id, data) => api.post(`/bills/${id}/payments`, data),
+    downloadPDF: (id) => api.get(`/bills/${id}/pdf`, { responseType: "blob" }),
 };
 
 // ── Health Check ──────────────────────────────────────────────────────────────
