@@ -1,50 +1,36 @@
 import axios from "axios";
 
-// Direct absolute backend URL
-export const API_BASE_URL = "https://fees-management-r4j5.onrender.com/api";
+// Automatically uses your live Render backend URL or environment variable
+const API_BASE_URL =
+    import.meta.env.VITE_API_URL ||
+    "https://fees-management-r4j5.onrender.com/api";
 
-// Create an Axios instance pointing directly to the backend API
-const API = axios.create({
+const api = axios.create({
     baseURL: API_BASE_URL,
     headers: {
         "Content-Type": "application/json",
     },
 });
 
-// Response interceptor for error handling
-API.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        console.error("API Error:", error.response?.data || error.message);
-        return Promise.reject(error);
-    }
+// Attach token to every request if available
+api.interceptors.request.use(
+    (config) => {
+        const token = localStorage.getItem("token");
+        if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    },
+    (error) => Promise.reject(error)
 );
 
-// ── Student APIs ──────────────────────────────────────────────────────────────
-
 export const studentAPI = {
-    list: (params) => API.get("/students", { params }),
-    get: (id) => API.get(`/students/${id}`),
-    create: (data) => API.post("/students", data),
-    update: (id, data) => API.put(`/students/${id}`, data),
-    delete: (id) => API.delete(`/students/${id}`),
-    stats: () => API.get("/students/stats/summary"),
-    getBills: (id) => API.get(`/students/${id}/bills`),
+    list: (params) => api.get("/students", { params }),
+    getById: (id) => api.get(`/students/${id}`),
+    create: (data) => api.post("/students", data),
+    update: (id, data) => api.put(`/students/${id}`, data),
+    delete: (id) => api.delete(`/students/${id}`),
 };
-
-// ── Fee Structure APIs ────────────────────────────────────────────────────────
-
-export const feeStructureAPI = {
-    list: (params) => API.get("/fee-structures", { params }),
-    get: (id) => API.get(`/fee-structures/${id}`),
-    create: (data) => API.post("/fee-structures", data),
-    update: (id, data) => API.put(`/fee-structures/${id}`, data),
-    delete: (id) => API.delete(`/fee-structures/${id}`),
-    getByClass: (className) => API.get(`/fee-structures/class/${className}`),
-    bulkCreate: (data) => API.post("/fee-structures/bulk", data),
-};
-
-// ── Bill APIs ─────────────────────────────────────────────────────────────────
 
 export const billAPI = {
     list: (params) => api.get("/bills", { params }),
@@ -52,13 +38,16 @@ export const billAPI = {
     create: (data) => api.post("/bills", data),
     generateBills: (data) => api.post("/bills/generate", data),
     recordPayment: (id, data) => api.post(`/bills/${id}/payments`, data),
+    getStats: () => api.get("/bills/stats/summary"),
     downloadPDF: (id) => api.get(`/bills/${id}/pdf`, { responseType: "blob" }),
 };
 
-// ── Health Check ──────────────────────────────────────────────────────────────
-
-export const healthAPI = {
-    check: () => API.get("/health"),
+export const feeStructureAPI = {
+    list: (params) => api.get("/fee-structures", { params }),
+    getById: (id) => api.get(`/fee-structures/${id}`),
+    create: (data) => api.post("/fee-structures", data),
+    update: (id, data) => api.put(`/fee-structures/${id}`, data),
+    delete: (id) => api.delete(`/fee-structures/${id}`),
 };
 
-export default API;
+export default api;
