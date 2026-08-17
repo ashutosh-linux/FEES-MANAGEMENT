@@ -13,7 +13,7 @@ export default function FeeStructures() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [formData, setFormData] = useState({
-        feeType: "Tuition Fee",
+        feeType: "Tuition",
         className: "1",
         amount: "",
         billingCycle: "Monthly",
@@ -65,7 +65,7 @@ export default function FeeStructures() {
             });
             setIsModalOpen(false);
             setFormData({
-                feeType: "Tuition Fee",
+                feeType: "Tuition",
                 className: "1",
                 amount: "",
                 billingCycle: "Monthly",
@@ -73,7 +73,11 @@ export default function FeeStructures() {
             });
             fetchStructures();
         } catch (err) {
-            alert(err.response?.data?.message || "Failed to add fee item");
+            const backendError =
+                err.response?.data?.errors?.[0]?.message ||
+                err.response?.data?.message ||
+                "Failed to add fee item";
+            alert(backendError);
         } finally {
             setSubmitting(false);
         }
@@ -205,16 +209,22 @@ export default function FeeStructures() {
                         </div>
                         <form onSubmit={handleAddStructure} className="space-y-3">
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Fee Head Name *</label>
-                                <input
-                                    type="text"
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Fee Type *</label>
+                                <select
                                     name="feeType"
-                                    required
-                                    placeholder="e.g. Tuition Fee, Exam Fee"
                                     value={formData.feeType}
                                     onChange={handleInputChange}
                                     className="w-full px-3 py-2 text-sm border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                                />
+                                >
+                                    <option value="Tuition">Tuition</option>
+                                    <option value="Transport">Transport</option>
+                                    <option value="Admission">Admission</option>
+                                    <option value="Exam">Exam</option>
+                                    <option value="Library">Library</option>
+                                    <option value="Hostel">Hostel</option>
+                                    <option value="Sports">Sports</option>
+                                    <option value="Miscellaneous">Miscellaneous</option>
+                                </select>
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
@@ -257,6 +267,17 @@ export default function FeeStructures() {
                                     <option value="Annually">Annually</option>
                                     <option value="One-Time">One-Time</option>
                                 </select>
+                            </div>
+                            <div>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Description (Optional)</label>
+                                <input
+                                    type="text"
+                                    name="description"
+                                    placeholder="Optional note"
+                                    value={formData.description}
+                                    onChange={handleInputChange}
+                                    className="w-full px-3 py-2 text-sm border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                                />
                             </div>
                             <div className="flex justify-end gap-2 pt-3">
                                 <button
