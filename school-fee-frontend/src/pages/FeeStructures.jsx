@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, Loader, AlertCircle, Trash2, X } from "lucide-react";
+import toast from "react-hot-toast";
 import { feeStructureAPI } from "../services/api";
 
 export default function FeeStructures() {
@@ -63,6 +64,7 @@ export default function FeeStructures() {
                 ...formData,
                 amount: Number(formData.amount),
             });
+            toast.success("Fee structure created successfully!");
             setIsModalOpen(false);
             setFormData({
                 feeType: "Tuition",
@@ -77,7 +79,7 @@ export default function FeeStructures() {
                 err.response?.data?.errors?.[0]?.message ||
                 err.response?.data?.message ||
                 "Failed to add fee item";
-            alert(backendError);
+            toast.error(backendError);
         } finally {
             setSubmitting(false);
         }
@@ -87,9 +89,10 @@ export default function FeeStructures() {
         if (!window.confirm("Are you sure you want to delete this fee item?")) return;
         try {
             await feeStructureAPI.delete(id);
+            toast.success("Fee item deleted successfully");
             fetchStructures();
         } catch (err) {
-            alert(err.response?.data?.message || "Failed to delete fee item");
+            toast.error(err.response?.data?.message || "Failed to delete fee item");
         }
     };
 

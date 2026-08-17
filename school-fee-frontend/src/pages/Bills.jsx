@@ -1,15 +1,13 @@
+import InvoiceActions from "../components/InvoiceActions.jsx";
 import { useState, useEffect } from "react";
 import {
     Plus,
-    Download,
-    Filter,
     Loader,
     AlertCircle,
-    Eye,
     DollarSign,
     X,
-    Calendar,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import { billAPI, studentAPI, feeStructureAPI } from "../services/api";
 
 export default function Bills() {
@@ -28,20 +26,27 @@ export default function Bills() {
     const [submitting, setSubmitting] = useState(false);
     const [selectedBill, setSelectedBill] = useState(null);
 
+    // Helper: 15 days from today
+    const getDefaultDueDate = () => {
+        const d = new Date();
+        d.setDate(d.getDate() + 15);
+        return d.toISOString().split("T")[0];
+    };
+
     // Form States
     const [manualForm, setManualForm] = useState({
         studentId: "",
-        dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        dueDate: getDefaultDueDate(),
         month: new Date().toLocaleString("en-US", { month: "long" }),
         year: new Date().getFullYear(),
-        items: [{ description: "Tuition Fee", amount: 0 }],
+        items: [{ description: "Tuition", amount: 0 }],
     });
 
     const [generateForm, setGenerateForm] = useState({
         class: "All",
         month: new Date().toLocaleString("en-US", { month: "long" }),
         year: new Date().getFullYear(),
-        dueDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        dueDate: getDefaultDueDate(),
     });
 
     const [paymentForm, setPaymentForm] = useState({
@@ -77,7 +82,6 @@ export default function Bills() {
         }
     };
 
-    // Pre-fetch students & fee structures for creation forms
     useEffect(() => {
         const fetchAuxData = async () => {
             try {
@@ -94,7 +98,7 @@ export default function Bills() {
                     setFeeStructures(Array.isArray(raw) ? raw : raw?.feeStructures || []);
                 }
             } catch (e) {
-                console.error("Error prefetching data:", e);
+                console.error("Error prefetching auxiliary data:", e);
             }
         };
         fetchAuxData();
@@ -105,25 +109,6 @@ export default function Bills() {
         return () => clearTimeout(debounceTimer);
     }, [statusFilter, currentPage]);
 
-    // Handle PDF Download
-    const handleDownloadPDF = async (billId) => {
-        try {
-            const response = await billAPI.downloadPDF(billId);
-            const url = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
-            const link = document.createElement("a");
-            link.href = url;
-            link.setAttribute("download", `Invoice-${billId}.pdf`);
-            document.body.appendChild(link);
-            link.click();
-            link.parentNode.removeChild(link);
-            window.URL.revokeObjectURL(url);
-        } catch (err) {
-            console.error("Error downloading PDF:", err);
-            alert("Failed to download invoice PDF");
-        }
-    };
-
-    // Handle Manual Bill Submit
     const handleManualSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -133,16 +118,20 @@ export default function Bills() {
                 ...manualForm,
                 totalAmount,
             });
+            toast.success("Bill created successfully!");
             setIsManualModalOpen(false);
             fetchBills();
         } catch (err) {
-            alert(err.response?.data?.message || "Failed to create manual bill");
+            const errorMsg =
+                err.response?.data?.errors?.[0]?.message ||
+                err.response?.data?.message ||
+                "Failed to create manual bill";
+            toast.error(errorMsg);
         } finally {
             setSubmitting(false);
         }
     };
 
-    // Handle Bulk Bill Generation Submit
     const handleGenerateSubmit = async (e) => {
         e.preventDefault();
         try {
@@ -153,17 +142,21 @@ export default function Bills() {
                 year: Number(generateForm.year),
                 dueDate: generateForm.dueDate,
             };
-            await billAPI.generateBills(payload);
+            const res = await billAPI.generateBills(payload);
+            toast.success(res.data?.message || "Bills generated successfully!");
             setIsGenerateModalOpen(false);
             fetchBills();
         } catch (err) {
-            alert(err.response?.data?.message || "Failed to generate bills");
+            const errorMsg =
+                err.response?.data?.errors?.[0]?.message ||
+                err.response?.data?.message ||
+                "Failed to generate bills";
+            toast.error(errorMsg);
         } finally {
             setSubmitting(false);
         }
     };
 
-    // Handle Payment Submission
     const handlePaymentSubmit = async (e) => {
         e.preventDefault();
         if (!selectedBill) return;
@@ -173,11 +166,16 @@ export default function Bills() {
                 ...paymentForm,
                 amount: Number(paymentForm.amount),
             });
+            toast.success("Payment recorded successfully!");
             setIsPaymentModalOpen(false);
             setSelectedBill(null);
             fetchBills();
         } catch (err) {
-            alert(err.response?.data?.message || "Failed to record payment");
+            const errorMsg =
+                err.response?.data?.errors?.[0]?.message ||
+                err.response?.data?.message ||
+                "Failed to record payment";
+            toast.error(errorMsg);
         } finally {
             setSubmitting(false);
         }
@@ -211,15 +209,17 @@ export default function Bills() {
                 </div>
                 <div className="flex gap-2">
                     <button
+                        type="button"
                         onClick={() => setIsGenerateModalOpen(true)}
-                        className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition"
+                        className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition font-medium cursor-pointer"
                     >
                         <Plus size={18} />
                         Generate Bills
                     </button>
                     <button
+                        type="button"
                         onClick={() => setIsManualModalOpen(true)}
-                        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+                        className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium cursor-pointer"
                     >
                         <Plus size={18} />
                         Manual Bill
@@ -272,14 +272,16 @@ export default function Bills() {
                     <p className="text-slate-600 dark:text-slate-400 mb-4">No bills found.</p>
                     <div className="flex justify-center gap-3">
                         <button
+                            type="button"
                             onClick={() => setIsGenerateModalOpen(true)}
-                            className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition inline-flex items-center gap-2"
+                            className="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition inline-flex items-center gap-2 font-medium cursor-pointer"
                         >
                             <Plus size={18} /> Bulk Generate Bills
                         </button>
                         <button
+                            type="button"
                             onClick={() => setIsManualModalOpen(true)}
-                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition inline-flex items-center gap-2"
+                            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition inline-flex items-center gap-2 font-medium cursor-pointer"
                         >
                             <Plus size={18} /> Create Manual Bill
                         </button>
@@ -321,32 +323,32 @@ export default function Bills() {
                                             ₹{(Number(bill.balanceDue) || 0).toLocaleString("en-IN")}
                                         </td>
                                         <td className="px-4 py-3">{getStatusBadge(bill.status)}</td>
-                                        <td className="px-4 py-3 text-center flex gap-2 justify-center">
-                                            <button
-                                                onClick={() => handleDownloadPDF(bill._id)}
-                                                className="p-1 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded text-blue-600"
-                                                title="Download PDF"
-                                            >
-                                                <Download size={16} />
-                                            </button>
-                                            {bill.status !== "Paid" && (
-                                                <button
-                                                    onClick={() => {
-                                                        setSelectedBill(bill);
-                                                        setPaymentForm({
-                                                            amount: bill.balanceDue || 0,
-                                                            paymentMode: "Cash",
-                                                            transactionReference: "",
-                                                            remarks: "",
-                                                        });
-                                                        setIsPaymentModalOpen(true);
-                                                    }}
-                                                    className="p-1 hover:bg-green-100 dark:hover:bg-green-900/30 rounded text-green-600"
-                                                    title="Record Payment"
-                                                >
-                                                    <DollarSign size={16} />
-                                                </button>
-                                            )}
+                                        <td className="px-4 py-3 text-center">
+                                            <div className="flex items-center justify-center gap-2">
+                                                {/* PDF View & Download Actions */}
+                                                <InvoiceActions billId={bill._id} billNumber={bill.billNumber} />
+
+                                                {/* Record Payment Button */}
+                                                {bill.status !== "Paid" && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setSelectedBill(bill);
+                                                            setPaymentForm({
+                                                                amount: bill.balanceDue || 0,
+                                                                paymentMode: "Cash",
+                                                                transactionReference: "",
+                                                                remarks: "",
+                                                            });
+                                                            setIsPaymentModalOpen(true);
+                                                        }}
+                                                        className="p-1.5 hover:bg-green-100 dark:hover:bg-green-900/30 rounded text-green-600 dark:text-green-400 transition cursor-pointer"
+                                                        title="Record Payment"
+                                                    >
+                                                        <DollarSign size={16} />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -358,17 +360,21 @@ export default function Bills() {
 
             {/* Modal 1: Generate Bills */}
             {isGenerateModalOpen && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+                <div className="fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 dark:border-slate-700">
                         <div className="flex items-center justify-between border-b pb-3 dark:border-slate-700">
                             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Auto-Generate Bills</h3>
-                            <button onClick={() => setIsGenerateModalOpen(false)} className="text-slate-500 hover:text-slate-700">
+                            <button
+                                type="button"
+                                onClick={() => setIsGenerateModalOpen(false)}
+                                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 cursor-pointer"
+                            >
                                 <X size={20} />
                             </button>
                         </div>
                         <form onSubmit={handleGenerateSubmit} className="space-y-3">
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">Target Class *</label>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Target Class *</label>
                                 <select
                                     value={generateForm.class}
                                     onChange={(e) => setGenerateForm({ ...generateForm, class: e.target.value })}
@@ -382,7 +388,7 @@ export default function Bills() {
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">Month *</label>
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Month *</label>
                                     <select
                                         value={generateForm.month}
                                         onChange={(e) => setGenerateForm({ ...generateForm, month: e.target.value })}
@@ -397,7 +403,7 @@ export default function Bills() {
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">Year *</label>
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Year *</label>
                                     <input
                                         type="number"
                                         value={generateForm.year}
@@ -407,7 +413,7 @@ export default function Bills() {
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">Due Date *</label>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Due Date *</label>
                                 <input
                                     type="date"
                                     required
@@ -420,14 +426,14 @@ export default function Bills() {
                                 <button
                                     type="button"
                                     onClick={() => setIsGenerateModalOpen(false)}
-                                    className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 rounded-lg"
+                                    className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 cursor-pointer"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={submitting}
-                                    className="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50"
+                                    className="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg disabled:opacity-50 cursor-pointer"
                                 >
                                     {submitting ? "Generating..." : "Generate Bills"}
                                 </button>
@@ -439,17 +445,21 @@ export default function Bills() {
 
             {/* Modal 2: Manual Bill */}
             {isManualModalOpen && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+                <div className="fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 dark:border-slate-700">
                         <div className="flex items-center justify-between border-b pb-3 dark:border-slate-700">
                             <h3 className="text-lg font-bold text-slate-900 dark:text-white">Create Manual Bill</h3>
-                            <button onClick={() => setIsManualModalOpen(false)} className="text-slate-500 hover:text-slate-700">
+                            <button
+                                type="button"
+                                onClick={() => setIsManualModalOpen(false)}
+                                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 cursor-pointer"
+                            >
                                 <X size={20} />
                             </button>
                         </div>
                         <form onSubmit={handleManualSubmit} className="space-y-3">
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">Select Student *</label>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Select Student *</label>
                                 <select
                                     required
                                     value={manualForm.studentId}
@@ -466,9 +476,8 @@ export default function Bills() {
                             </div>
                             <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">Item Name</label>
-                                    <input
-                                        type="text"
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Fee Type</label>
+                                    <select
                                         value={manualForm.items[0].description}
                                         onChange={(e) => {
                                             const items = [...manualForm.items];
@@ -476,10 +485,19 @@ export default function Bills() {
                                             setManualForm({ ...manualForm, items });
                                         }}
                                         className="w-full px-3 py-2 text-sm border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                                    />
+                                    >
+                                        <option value="Tuition">Tuition</option>
+                                        <option value="Transport">Transport</option>
+                                        <option value="Admission">Admission</option>
+                                        <option value="Exam">Exam</option>
+                                        <option value="Library">Library</option>
+                                        <option value="Hostel">Hostel</option>
+                                        <option value="Sports">Sports</option>
+                                        <option value="Miscellaneous">Miscellaneous</option>
+                                    </select>
                                 </div>
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">Amount (₹) *</label>
+                                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Amount (₹) *</label>
                                     <input
                                         type="number"
                                         required
@@ -495,7 +513,7 @@ export default function Bills() {
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">Due Date *</label>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Due Date *</label>
                                 <input
                                     type="date"
                                     required
@@ -508,14 +526,14 @@ export default function Bills() {
                                 <button
                                     type="button"
                                     onClick={() => setIsManualModalOpen(false)}
-                                    className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 rounded-lg"
+                                    className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 cursor-pointer"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={submitting}
-                                    className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50"
+                                    className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 cursor-pointer"
                                 >
                                     {submitting ? "Saving..." : "Create Bill"}
                                 </button>
@@ -527,20 +545,24 @@ export default function Bills() {
 
             {/* Modal 3: Record Payment */}
             {isPaymentModalOpen && selectedBill && (
-                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+                <div className="fixed inset-0 z-[9999] bg-black/70 flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 dark:border-slate-700">
                         <div className="flex items-center justify-between border-b pb-3 dark:border-slate-700">
                             <div>
                                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">Record Payment</h3>
                                 <p className="text-xs text-slate-500 font-mono">Bill #{selectedBill.billNumber}</p>
                             </div>
-                            <button onClick={() => setIsPaymentModalOpen(false)} className="text-slate-500 hover:text-slate-700">
+                            <button
+                                type="button"
+                                onClick={() => setIsPaymentModalOpen(false)}
+                                className="text-slate-500 hover:text-slate-700 dark:text-slate-400 cursor-pointer"
+                            >
                                 <X size={20} />
                             </button>
                         </div>
                         <form onSubmit={handlePaymentSubmit} className="space-y-3">
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                                     Payment Amount (₹) — Max: ₹{selectedBill.balanceDue}
                                 </label>
                                 <input
@@ -554,7 +576,7 @@ export default function Bills() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">Payment Mode</label>
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">Payment Mode</label>
                                 <select
                                     value={paymentForm.paymentMode}
                                     onChange={(e) => setPaymentForm({ ...paymentForm, paymentMode: e.target.value })}
@@ -567,7 +589,7 @@ export default function Bills() {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
                                     Transaction Ref / Note
                                 </label>
                                 <input
@@ -582,14 +604,14 @@ export default function Bills() {
                                 <button
                                     type="button"
                                     onClick={() => setIsPaymentModalOpen(false)}
-                                    className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 rounded-lg"
+                                    className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 rounded-lg text-slate-700 dark:text-slate-300 cursor-pointer"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={submitting}
-                                    className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50"
+                                    className="px-4 py-2 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 cursor-pointer"
                                 >
                                     {submitting ? "Recording..." : "Confirm Payment"}
                                 </button>

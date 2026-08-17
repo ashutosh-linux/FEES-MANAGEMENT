@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Plus, Filter, Loader, AlertCircle, Trash2, X } from "lucide-react";
+import toast from "react-hot-toast";
 import { studentAPI } from "../services/api";
 
 export default function Students() {
@@ -57,14 +58,26 @@ export default function Students() {
     }, [searchTerm, classFilter, sectionFilter, currentPage]);
 
     const handleInputChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+        const { name, value } = e.target;
+        if (name === "contactNumber") {
+            const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+            setFormData({ ...formData, [name]: digitsOnly });
+        } else {
+            setFormData({ ...formData, [name]: value });
+        }
     };
 
     const handleAddStudent = async (e) => {
         e.preventDefault();
+        if (formData.contactNumber && formData.contactNumber.length !== 10) {
+            toast.error("Please enter a valid 10-digit contact number");
+            return;
+        }
+
         try {
             setSubmitting(true);
             await studentAPI.create(formData);
+            toast.success("Student added successfully!");
             setIsModalOpen(false);
             setFormData({
                 name: "",
@@ -76,7 +89,11 @@ export default function Students() {
             });
             fetchStudents();
         } catch (err) {
-            alert(err.response?.data?.message || "Failed to add student");
+            const errorMsg =
+                err.response?.data?.errors?.[0]?.message ||
+                err.response?.data?.message ||
+                "Failed to add student";
+            toast.error(errorMsg);
         } finally {
             setSubmitting(false);
         }
@@ -86,9 +103,10 @@ export default function Students() {
         if (!window.confirm("Are you sure you want to delete this student?")) return;
         try {
             await studentAPI.delete(id);
+            toast.success("Student deleted successfully");
             fetchStudents();
         } catch (err) {
-            alert(err.response?.data?.message || "Failed to delete student");
+            toast.error(err.response?.data?.message || "Failed to delete student");
         }
     };
 
@@ -320,7 +338,7 @@ export default function Students() {
                                     <input
                                         type="text"
                                         name="contactNumber"
-                                        placeholder="9876543210"
+                                        placeholder="10-digit number"
                                         value={formData.contactNumber}
                                         onChange={handleInputChange}
                                         className="w-full px-3 py-2 text-sm border rounded-lg dark:bg-slate-700 dark:border-slate-600 dark:text-white"
