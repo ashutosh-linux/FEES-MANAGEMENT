@@ -1,20 +1,18 @@
 import React, { useState } from "react";
 import axios from "axios";
 
-export default function InvoiceActions({ billId, billNumber }) {
+export const InvoiceActions = ({ billId, billNumber }) => {
     const [isDownloading, setIsDownloading] = useState(false);
     const [isViewing, setIsViewing] = useState(false);
 
     const fetchPdfBlob = async () => {
         const token = localStorage.getItem("token");
-
         const response = await axios.get(`/api/bills/${billId}/pdf`, {
             responseType: "blob",
             headers: {
                 Authorization: token ? `Bearer ${token}` : "",
             },
         });
-
         return new Blob([response.data], { type: "application/pdf" });
     };
 
@@ -22,14 +20,12 @@ export default function InvoiceActions({ billId, billNumber }) {
         try {
             setIsDownloading(true);
             const blob = await fetchPdfBlob();
-
             const fileUrl = window.URL.createObjectURL(blob);
             const link = document.createElement("a");
             link.href = fileUrl;
             link.setAttribute("download", `Invoice_${billNumber || billId}.pdf`);
             document.body.appendChild(link);
             link.click();
-
             link.parentNode.removeChild(link);
             window.URL.revokeObjectURL(fileUrl);
         } catch (err) {
@@ -46,7 +42,6 @@ export default function InvoiceActions({ billId, billNumber }) {
             const blob = await fetchPdfBlob();
             const fileUrl = window.URL.createObjectURL(blob);
             window.open(fileUrl, "_blank");
-
             setTimeout(() => window.URL.revokeObjectURL(fileUrl), 10000);
         } catch (err) {
             console.error("Failed to view invoice:", err);
@@ -95,4 +90,7 @@ export default function InvoiceActions({ billId, billNumber }) {
             </button>
         </div>
     );
-}
+};
+
+// Also export default as a fallback:
+export default InvoiceActions;
